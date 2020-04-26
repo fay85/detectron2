@@ -8,6 +8,7 @@ from fvcore.common.file_io import PathManager
 
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.structures import BoxMode
+from tqdm import tqdm
 
 __all__ = ["register_multiperson_vgg"]
 
@@ -32,18 +33,30 @@ def load_vgg_instances(img_dir):
         imgs_anns = json.load(f)
 
     dataset_dicts = []
-    for idx, v in enumerate(imgs_anns.values()):
+    total_bad_igms=0
+    f_bad = open("bad_imgs.txt", "w")
+    print('Building Dataset, please wait')
+    for idx, v in enumerate(tqdm(imgs_anns.values())):
         record = {}
-        
-
+        img=None
         filename = os.path.join(img_dir, v["filename"])
-        filename=filename.split('.')[0]+'_depth'+'.png'
-        if not os.path.isfile(filename):
-            print('{} not exist!'.format(filename))
+        filename_depth=filename.split('.')[0]+'_depth'+'.png'
+        if os.path.isfile(filename):
+            img=filename
+        elif os.path.isfile(filename_depth):
+            img=filename_depth
+        else:
+            f_bad.write(filename_depth+'\n')
+            print('file not exist {}'.format(filename_depth))
+            total_bad_igms+=1
             continue
-        height, width = cv2.imread(filename).shape[:2]
-        
-        record["file_name"] = filename
+        tmp = cv2.imread(img)
+        if tmp is None:
+            print('img {} corrupted'.format(img))
+            total_bad_igms+=1
+            continue
+        height, width=tmp.shape[:2]
+        record["file_name"] = img
         record["image_id"] = idx
         record["height"] = height
         record["width"] = width
@@ -72,14 +85,21 @@ def load_vgg_instances(img_dir):
         if validate:
             record["annotations"] = objs
             dataset_dicts.append(record)
+    print('Total bad images {}'.format(total_bad_igms))
+    f_bad.close()
     return dataset_dicts
 
 
 def register_multiperson_vgg():
-    DatasetCatalog.register('tracker_train', lambda: load_vgg_instances('datasets/tracker_train'))
+    DatasetCatalog.register('tracker_train', lambda: load_vgg_instances('datasets/tracker_train/depth'))
     MetadataCatalog.get('tracker_train').set(
         thing_classes=CLASS_NAMES)
-    DatasetCatalog.register('tracker_val', lambda: load_vgg_instances('datasets/tracker_val'))
+    DatasetCatalog.register('tracker_val', lambda: load_vgg_instances('datasets/tracker_val/depth'))
     MetadataCatalog.get('tracker_val').set(
         thing_classes=CLASS_NAMES)
-        
+    DatasetCatalog.register('mh_train', lambda: load_vgg_instances('datasets/mh_train'))
+    MetadataCatalog.get('mh_train').set(
+        thing_classes=CLASS_NAMES)
+    DatasetCatalog.register('mh_val', lambda: load_vgg_instances('datasets/mh_val'))
+    MetadataCatalog.get('mh_val').set(
+        thing_classes=CLASS_NAMES)        

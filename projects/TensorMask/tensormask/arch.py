@@ -274,6 +274,8 @@ class TensorMaskAnchorGenerator(DefaultAnchorGenerator):
         # Convert anchors from Tensor to Boxes
         anchors_per_im = [Boxes(x) for x in anchors_list]
 
+        # TODO it can be simplified to not return duplicated information for
+        # each image, just like detectron2's own AnchorGenerator
         anchors = [copy.deepcopy(anchors_per_im) for _ in range(num_images)]
         unit_lengths = [copy.deepcopy(lengths_list) for _ in range(num_images)]
         indexes = [copy.deepcopy(indexes_list) for _ in range(num_images)]
@@ -309,8 +311,7 @@ class TensorMask(nn.Module):
         self.mask_on                  = cfg.MODEL.MASK_ON
         self.mask_loss_weight         = cfg.MODEL.TENSOR_MASK.MASK_LOSS_WEIGHT
         self.mask_pos_weight          = torch.tensor(cfg.MODEL.TENSOR_MASK.POSITIVE_WEIGHT,
-                                                     dtype=torch.float32,
-                                                     device=self.device)
+                                                     dtype=torch.float32)
         self.bipyramid_on             = cfg.MODEL.TENSOR_MASK.BIPYRAMID_ON
         # fmt: on
 

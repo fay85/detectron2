@@ -1,5 +1,4 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-import copy
 import math
 from typing import List
 import torch
@@ -155,6 +154,10 @@ class DefaultAnchorGenerator(nn.Module):
         return [len(cell_anchors) for cell_anchors in self.cell_anchors]
 
     def _grid_anchors(self, grid_sizes: List[List[int]]):
+        """
+        Returns:
+            list[Tensor]: #featuremap tensors, each is (#locations x #cell_anchors) x 4
+        """
         anchors = []
         for size, stride, base_anchors in zip(grid_sizes, self.strides, self.cell_anchors):
             shift_x, shift_y = _create_grid_offsets(size, stride, self.offset, base_anchors.device)
@@ -207,20 +210,14 @@ class DefaultAnchorGenerator(nn.Module):
             features (list[Tensor]): list of backbone feature maps on which to generate anchors.
 
         Returns:
-            list[list[Boxes]]: a list of #image elements. Each is a list of #feature level Boxes.
-                The Boxes contains anchors of this image on the specific feature level.
+            list[Boxes]: a list of Boxes containing all the anchors for each feature map
+                (i.e. the cell anchors repeated over all locations in the feature map).
+                The number of anchors of each feature map is Hi x Wi x num_cell_anchors,
+                where Hi, Wi are resolution of the feature map divided by anchor stride.
         """
-        num_images = len(features[0])
         grid_sizes = [feature_map.shape[-2:] for feature_map in features]
         anchors_over_all_feature_maps = self._grid_anchors(grid_sizes)
-
-        anchors_in_image = []
-        for anchors_per_feature_map in anchors_over_all_feature_maps:
-            boxes = Boxes(anchors_per_feature_map)
-            anchors_in_image.append(boxes)
-
-        anchors = [copy.deepcopy(anchors_in_image) for _ in range(num_images)]
-        return anchors
+        return [Boxes(x) for x in anchors_over_all_feature_maps]
 
 
 @ANCHOR_GENERATOR_REGISTRY.register()
@@ -353,21 +350,14 @@ class RotatedAnchorGenerator(nn.Module):
             features (list[Tensor]): list of backbone feature maps on which to generate anchors.
 
         Returns:
-            list[list[RotatedBoxes]]:
-                a list of #image elements. Each is a list of #feature level RotatedBoxes.
-                The RotatedBoxes contains anchors of this image on the specific feature level.
+            list[RotatedBoxes]: a list of Boxes containing all the anchors for each feature map
+                (i.e. the cell anchors repeated over all locations in the feature map).
+                The number of anchors of each feature map is Hi x Wi x num_cell_anchors,
+                where Hi, Wi are resolution of the feature map divided by anchor stride.
         """
-        num_images = len(features[0])
         grid_sizes = [feature_map.shape[-2:] for feature_map in features]
         anchors_over_all_feature_maps = self._grid_anchors(grid_sizes)
-
-        anchors_in_image = []
-        for anchors_per_feature_map in anchors_over_all_feature_maps:
-            boxes = RotatedBoxes(anchors_per_feature_map)
-            anchors_in_image.append(boxes)
-
-        anchors = [copy.deepcopy(anchors_in_image) for _ in range(num_images)]
-        return anchors
+        return [RotatedBoxes(x) for x in anchors_over_all_feature_maps]
 
 
 def build_anchor_generator(cfg, input_shape):

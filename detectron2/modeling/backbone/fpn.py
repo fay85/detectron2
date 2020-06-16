@@ -17,7 +17,7 @@ __all__ = ['build_efficient_fpn_backbone',"build_resnet_fpn_backbone", "build_re
 
 class FPN(Backbone):
     """
-    This module implements Feature Pyramid Network.
+    This module implements :paper:`FPN`.
     It creates pyramid features built on top of some input feature maps.
     """
 

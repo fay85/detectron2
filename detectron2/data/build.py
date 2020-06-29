@@ -1,6 +1,4 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
-import bisect
-import copy
 import itertools
 import logging
 import numpy as np
@@ -16,17 +14,18 @@ from detectron2.utils.comm import get_world_size
 from detectron2.utils.env import seed_all_rng
 from detectron2.utils.logger import log_first_n
 
-from . import samplers
 from .catalog import DatasetCatalog, MetadataCatalog
 from .common import AspectRatioGroupedDataset, DatasetFromList, MapDataset
 from .dataset_mapper import DatasetMapper
 from .detection_utils import check_metadata_consistency
+from .samplers import InferenceSampler, RepeatFactorTrainingSampler, TrainingSampler
 
 """
 This file contains the default logic to build a dataloader for training or testing.
 """
 
 __all__ = [
+    "build_batch_data_loader",
     "build_detection_train_loader",
     "build_detection_test_loader",
     "get_detection_dataset_dicts",
@@ -152,13 +151,6 @@ def load_proposals_into_dataset(dataset_dicts, proposal_file):
         record["proposal_bbox_mode"] = bbox_mode
 
     return dataset_dicts
-
-
-def _quantize(x, bin_edges):
-    bin_edges = copy.copy(bin_edges)
-    bin_edges = sorted(bin_edges)
-    quantized = list(map(lambda y: bisect.bisect_right(bin_edges, y), x))
-    return quantized
 
 
 def print_instances_class_histogram(dataset_dicts, class_names):
@@ -343,11 +335,12 @@ def build_detection_train_loader(cfg, mapper=None):
     logger.info("Using training sampler {}".format(sampler_name))
     # TODO avoid if-else?
     if sampler_name == "TrainingSampler":
-        sampler = samplers.TrainingSampler(len(dataset))
+        sampler = TrainingSampler(len(dataset))
     elif sampler_name == "RepeatFactorTrainingSampler":
-        sampler = samplers.RepeatFactorTrainingSampler(
+        repeat_factors = RepeatFactorTrainingSampler.repeat_factors_from_category_frequency(
             dataset_dicts, cfg.DATALOADER.REPEAT_THRESHOLD
         )
+        sampler = RepeatFactorTrainingSampler(repeat_factors)
     else:
         raise ValueError("Unknown training sampler: {}".format(sampler_name))
     return build_batch_data_loader(
@@ -391,7 +384,7 @@ def build_detection_test_loader(cfg, dataset_name, mapper=None):
         mapper = DatasetMapper(cfg, False)
     dataset = MapDataset(dataset, mapper)
 
-    sampler = samplers.InferenceSampler(len(dataset))
+    sampler = InferenceSampler(len(dataset))
     # Always use 1 image per worker during inference since this is the
     # standard when reporting inference time in papers.
     batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, 1, drop_last=False)

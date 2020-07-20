@@ -45,6 +45,8 @@ def add_densepose_config(cfg: CN):
     _C.MODEL.ROI_DENSEPOSE_HEAD.PART_WEIGHTS = 1.0
     # Loss weights for UV regression.
     _C.MODEL.ROI_DENSEPOSE_HEAD.POINT_REGRESSION_WEIGHTS = 0.01
+    # Coarse segmentation is trained using instance segmentation task data
+    _C.MODEL.ROI_DENSEPOSE_HEAD.COARSE_SEGM_TRAINED_BY_MASKS = False
     # For Decoder
     _C.MODEL.ROI_DENSEPOSE_HEAD.DECODER_ON = True
     _C.MODEL.ROI_DENSEPOSE_HEAD.DECODER_NUM_CLASSES = 256
@@ -56,13 +58,55 @@ def add_densepose_config(cfg: CN):
     _C.MODEL.ROI_DENSEPOSE_HEAD.DEEPLAB.NORM = "GN"
     _C.MODEL.ROI_DENSEPOSE_HEAD.DEEPLAB.NONLOCAL_ON = 0
     # Confidences
-    # Enable learning confidences (variances) along with the actual values
+    # Enable learning UV confidences (variances) along with the actual values
     _C.MODEL.ROI_DENSEPOSE_HEAD.UV_CONFIDENCE = CN({"ENABLED": False})
     # UV confidence lower bound
     _C.MODEL.ROI_DENSEPOSE_HEAD.UV_CONFIDENCE.EPSILON = 0.01
+    # Enable learning segmentation confidences (variances) along with the actual values
+    _C.MODEL.ROI_DENSEPOSE_HEAD.SEGM_CONFIDENCE = CN({"ENABLED": False})
+    # Segmentation confidence lower bound
+    _C.MODEL.ROI_DENSEPOSE_HEAD.SEGM_CONFIDENCE.EPSILON = 0.01
     # Statistical model type for confidence learning, possible values:
     # - "iid_iso": statistically independent identically distributed residuals
     #    with isotropic covariance
     # - "indep_aniso": statistically independent residuals with anisotropic
     #    covariances
     _C.MODEL.ROI_DENSEPOSE_HEAD.UV_CONFIDENCE.TYPE = "iid_iso"
+    # List of angles for rotation in data augmentation during training
+    _C.INPUT.ROTATION_ANGLES = [0]
+    _C.TEST.AUG.ROTATION_ANGLES = ()  # Rotation TTA
+
+
+def add_hrnet_config(cfg: CN):
+    """
+    Add config for HRNet backbone.
+    """
+    _C = cfg
+
+    # For HigherHRNet w32
+    _C.MODEL.HRNET = CN()
+    _C.MODEL.HRNET.STEM_INPLANES = 64
+    _C.MODEL.HRNET.STAGE2 = CN()
+    _C.MODEL.HRNET.STAGE2.NUM_MODULES = 1
+    _C.MODEL.HRNET.STAGE2.NUM_BRANCHES = 2
+    _C.MODEL.HRNET.STAGE2.BLOCK = "BASIC"
+    _C.MODEL.HRNET.STAGE2.NUM_BLOCKS = [4, 4]
+    _C.MODEL.HRNET.STAGE2.NUM_CHANNELS = [32, 64]
+    _C.MODEL.HRNET.STAGE2.FUSE_METHOD = "SUM"
+    _C.MODEL.HRNET.STAGE3 = CN()
+    _C.MODEL.HRNET.STAGE3.NUM_MODULES = 4
+    _C.MODEL.HRNET.STAGE3.NUM_BRANCHES = 3
+    _C.MODEL.HRNET.STAGE3.BLOCK = "BASIC"
+    _C.MODEL.HRNET.STAGE3.NUM_BLOCKS = [4, 4, 4]
+    _C.MODEL.HRNET.STAGE3.NUM_CHANNELS = [32, 64, 128]
+    _C.MODEL.HRNET.STAGE3.FUSE_METHOD = "SUM"
+    _C.MODEL.HRNET.STAGE4 = CN()
+    _C.MODEL.HRNET.STAGE4.NUM_MODULES = 3
+    _C.MODEL.HRNET.STAGE4.NUM_BRANCHES = 4
+    _C.MODEL.HRNET.STAGE4.BLOCK = "BASIC"
+    _C.MODEL.HRNET.STAGE4.NUM_BLOCKS = [4, 4, 4, 4]
+    _C.MODEL.HRNET.STAGE4.NUM_CHANNELS = [32, 64, 128, 256]
+    _C.MODEL.HRNET.STAGE4.FUSE_METHOD = "SUM"
+
+    _C.MODEL.HRNET.HRFPN = CN()
+    _C.MODEL.HRNET.HRFPN.OUT_CHANNELS = 256

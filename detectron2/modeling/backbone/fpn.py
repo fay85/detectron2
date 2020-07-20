@@ -9,8 +9,10 @@ from detectron2.layers import Conv2d, ShapeSpec, get_norm
 from .backbone import Backbone
 from .build import BACKBONE_REGISTRY
 from .resnet import build_resnet_backbone
+from .efficientnet import build_efficient_backbone
 
-__all__ = ["build_resnet_fpn_backbone", "build_retinanet_resnet_fpn_backbone", "FPN"]
+
+__all__ = ['build_efficient_fpn_backbone',"build_resnet_fpn_backbone", "build_retinanet_resnet_fpn_backbone", "FPN"]
 
 
 class FPN(Backbone):
@@ -52,11 +54,12 @@ class FPN(Backbone):
         input_shapes = bottom_up.output_shape()
         in_strides = [input_shapes[f].stride for f in in_features]
         in_channels = [input_shapes[f].channels for f in in_features]
-
+        in_strides = [8,16,32,64]
         _assert_strides_are_log2_contiguous(in_strides)
+        
         lateral_convs = []
         output_convs = []
-
+        self.input_shapes=input_shapes
         use_bias = norm == ""
         for idx, in_channels in enumerate(in_channels):
             lateral_norm = get_norm(norm, out_channels)
@@ -91,6 +94,7 @@ class FPN(Backbone):
         self.bottom_up = bottom_up
         # Return feature names are "p<stage>", like ["p2", "p3", ..., "p6"]
         self._out_feature_strides = {"p{}".format(int(math.log2(s))): s for s in in_strides}
+        print('fpn output strides ',self._out_feature_strides)
         # top block output feature maps.
         if self.top_block is not None:
             for s in range(stage, stage + self.top_block.num_levels):
@@ -122,7 +126,10 @@ class FPN(Backbone):
         # Reverse feature maps into top-down order (from low to high resolution)
         bottom_up_features = self.bottom_up(x)
         x = [bottom_up_features[f] for f in self.in_features[::-1]]
+        #for i,xx in enumerate(x):
+        #    print('{} {}'.format(i,xx.size()))
         results = []
+        #print('x0.size {} in_features {} in_shapes {}'.format(x[0].size(),self.in_features,self.input_shapes))
         prev_features = self.lateral_convs[0](x[0])
         results.append(self.output_convs[0](prev_features))
         for features, lateral_conv, output_conv in zip(
@@ -130,6 +137,9 @@ class FPN(Backbone):
         ):
             top_down_features = F.interpolate(prev_features, scale_factor=2, mode="nearest")
             lateral_features = lateral_conv(features)
+            #print('{} top_down_features {}'.format(prev_features.size(),top_down_features.size()))
+            #print('{} features {}'.format(features.size(),lateral_features.size()))
+
             prev_features = lateral_features + top_down_features
             if self._fuse_type == "avg":
                 prev_features /= 2
@@ -243,3 +253,25 @@ def build_retinanet_resnet_fpn_backbone(cfg, input_shape: ShapeSpec):
         fuse_type=cfg.MODEL.FPN.FUSE_TYPE,
     )
     return backbone
+
+@BACKBONE_REGISTRY.register()
+def build_efficient_fpn_backbone(cfg, input_shape: ShapeSpec):
+    """
+    Args:
+        cfg: a detectron2 CfgNode
+
+    Returns:
+        backbone (Backbone): backbone module, must be a subclass of :class:`Backbone`.
+    """
+    bottom_up = build_efficient_backbone(cfg, input_shape)
+    in_features = cfg.MODEL.FPN.IN_FEATURES
+    out_channels = cfg.MODEL.FPN.OUT_CHANNELS
+    backbone = FPN(
+        bottom_up=bottom_up,
+        in_features=in_features,
+        out_channels=out_channels,
+        norm=cfg.MODEL.FPN.NORM,
+        fuse_type=cfg.MODEL.FPN.FUSE_TYPE,
+    )
+    return backbone
+    

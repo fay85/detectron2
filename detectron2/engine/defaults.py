@@ -181,7 +181,8 @@ class DefaultPredictor:
         self.cfg = cfg.clone()  # cfg can be modified by model
         self.model = build_model(self.cfg)
         self.model.eval()
-        self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
+        if len(cfg.DATASETS.TEST):
+            self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
 
         checkpointer = DetectionCheckpointer(self.model)
         checkpointer.load(cfg.MODEL.WEIGHTS)
@@ -299,7 +300,8 @@ class DefaultTrainer(SimpleTrainer):
     def resume_or_load(self, resume=True):
         """
         If `resume==True`, and last checkpoint exists, resume from it, load all checkpointables
-        (eg. optimizer and scheduler) and update iteration counter.
+        (eg. optimizer and scheduler) and update iteration counter from it. ``cfg.MODEL.WEIGHTS``
+        will not be used.
 
         Otherwise, load the model specified by the config (skip all checkpointables) and start from
         the first iteration.

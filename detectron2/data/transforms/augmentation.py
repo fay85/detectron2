@@ -233,6 +233,7 @@ def _transform_to_aug(tfm_or_aug):
     if isinstance(tfm_or_aug, Augmentation):
         return tfm_or_aug
     else:
+
         class _TransformToAug(Augmentation):
             def __init__(self, tfm: Transform):
                 self.tfm = tfm
@@ -335,7 +336,7 @@ class StandardAugInput(AugInput):
     An extended project that works with new data types may require augmentation
     policies that need more inputs. An algorithm may need to transform inputs
     in a way different from the standard approach defined in this class. In those
-    situations, users can implement new subclasses of :class:`AugInput` with differnt
+    situations, users can implement new subclasses of :class:`AugInput` with different
     attributes and the :meth:`transform` method.
     """
 

@@ -71,6 +71,10 @@ def load_vgg_instances(img_dir):
             anno = anno["shape_attributes"]
             px = anno["all_points_x"]
             py = anno["all_points_y"]
+            if len(px)!=len(py) or len(px)<3 or len(py)<3:
+                print('warning! wrong annotation ')
+                validate=False
+                break
             poly = [(x + 0.5, y + 0.5) for x, y in zip(px, py)]
             poly = [p for x in poly for p in x]
 

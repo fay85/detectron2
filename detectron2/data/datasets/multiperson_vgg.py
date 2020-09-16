@@ -71,6 +71,10 @@ def load_vgg_instances(img_dir):
             anno = anno["shape_attributes"]
             px = anno["all_points_x"]
             py = anno["all_points_y"]
+            if len(px)!=len(py) or len(px)<3 or len(py)<3:
+                print('warning! wrong annotation ')
+                validate=False
+                break
             poly = [(x + 0.5, y + 0.5) for x, y in zip(px, py)]
             poly = [p for x in poly for p in x]
 
@@ -97,9 +101,9 @@ def register_multiperson_vgg():
     DatasetCatalog.register('tracker_val', lambda: load_vgg_instances('datasets/tracker_val/depth'))
     MetadataCatalog.get('tracker_val').set(
         thing_classes=CLASS_NAMES)
-    DatasetCatalog.register('mh_train', lambda: load_vgg_instances('datasets/mh_train'))
+    DatasetCatalog.register('mh_train', lambda: load_vgg_instances('datasets/mh_train/merged'))
     MetadataCatalog.get('mh_train').set(
         thing_classes=CLASS_NAMES)
-    DatasetCatalog.register('mh_val', lambda: load_vgg_instances('datasets/mh_val'))
+    DatasetCatalog.register('mh_val', lambda: load_vgg_instances('datasets/mh_train/merged'))
     MetadataCatalog.get('mh_val').set(
         thing_classes=CLASS_NAMES)        

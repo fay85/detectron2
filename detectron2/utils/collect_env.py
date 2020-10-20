@@ -154,7 +154,7 @@ def collect_env_info():
                 msg = detect_compute_compatibility(CUDA_HOME, torchvision_C)
                 data.append(("torchvision arch flags", msg))
             except ImportError:
-                data.append(("torchvision._C", "failed to find"))
+                data.append(("torchvision._C", "Not found"))
     except AttributeError:
         data.append(("torchvision", "unknown"))
 
@@ -170,7 +170,7 @@ def collect_env_info():
 
         data.append(("cv2", cv2.__version__))
     except ImportError:
-        pass
+        data.append(("cv2", "Not found"))
     env_str = tabulate(data) + "\n"
     env_str += collect_torch_env()
     return env_str
@@ -185,3 +185,11 @@ if __name__ == "__main__":
         from detectron2.utils.collect_env import collect_env_info
 
         print(collect_env_info())
+    if torch.cuda.is_available():
+        for k in range(torch.cuda.device_count()):
+            device = f"cuda:{k}"
+            try:
+                x = torch.tensor([1, 2.0], dtype=torch.float32)
+                x = x.to(device)
+            except Exception:
+                print(f"Unable to copy tensor to device={device}")

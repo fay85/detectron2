@@ -62,7 +62,10 @@ def default_argument_parser(epilog=None):
 Examples:
 
 Run on single machine:
-    $ {sys.argv[0]} --num-gpus 8 --config-file cfg.yaml MODEL.WEIGHTS /path/to/weight.pth
+    $ {sys.argv[0]} --num-gpus 8 --config-file cfg.yaml
+
+Change some config options:
+    $ {sys.argv[0]} --config-file cfg.yaml MODEL.WEIGHTS /path/to/weight.pth SOLVER.BASE_LR 0.001
 
 Run on multiple machines:
     (machine0)$ {sys.argv[0]} --machine-rank 0 --num-machines 2 --dist-url <URL> [--other-flags]
@@ -74,7 +77,8 @@ Run on multiple machines:
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="whether to attempt to resume from the checkpoint directory",
+        help="Whether to attempt to resume from the checkpoint directory. "
+        "See documentation of `DefaultTrainer.resume_or_load()` for what it means.",
     )
     parser.add_argument("--eval-only", action="store_true", help="perform evaluation only")
     parser.add_argument("--num-gpus", type=int, default=1, help="number of gpus *per machine*")
@@ -95,7 +99,9 @@ Run on multiple machines:
     )
     parser.add_argument(
         "opts",
-        help="Modify config options using the command-line",
+        help="Modify config options by adding 'KEY VALUE' pairs at the end of the command. "
+        "See config references at "
+        "https://detectron2.readthedocs.io/modules/config.html#config-references",
         default=None,
         nargs=argparse.REMAINDER,
     )
@@ -225,7 +231,7 @@ class DefaultTrainer(SimpleTrainer):
     config. It does the following:
 
     1. Create model, optimizer, scheduler, dataloader from the given config.
-    2. Load a checkpoint or `cfg.MODEL.WEIGHTS`, if exists, when
+    2. Load the last checkpoint or `cfg.MODEL.WEIGHTS`, if exists, when
        `resume_or_load` is called.
     3. Register a few common hooks defined by the config.
 
@@ -301,12 +307,14 @@ class DefaultTrainer(SimpleTrainer):
 
     def resume_or_load(self, resume=True):
         """
-        If `resume==True`, and last checkpoint exists, resume from it, load all checkpointables
-        (eg. optimizer and scheduler) and update iteration counter from it. ``cfg.MODEL.WEIGHTS``
-        will not be used.
+        If `resume==True` and `cfg.OUTPUT_DIR` contains the last checkpoint (defined by
+        a `last_checkpoint` file), resume from the file. Resuming means loading all
+        available states (eg. optimizer and scheduler) and update iteration counter
+        from the checkpoint. ``cfg.MODEL.WEIGHTS`` will not be used.
 
-        Otherwise, load the model specified by the config (skip all checkpointables) and start from
-        the first iteration.
+        Otherwise, this is considered as an independent training. The method will load model
+        weights from the file `cfg.MODEL.WEIGHTS` (but will not load other states) and start
+        from iteration 0.
 
         Args:
             resume (bool): whether to do resume or not
@@ -486,7 +494,7 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
             model (nn.Module):
             evaluators (list[DatasetEvaluator] or None): if None, will call
                 :meth:`build_evaluator`. Otherwise, must have the same length as
-                `cfg.DATASETS.TEST`.
+                ``cfg.DATASETS.TEST``.
 
         Returns:
             dict: a dict of result metrics
@@ -544,10 +552,34 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
         * training steps and warmup steps are scaled inverse proportionally.
         * learning rate are scaled proportionally, following :paper:`ImageNet in 1h`.
 
-        It returns the original config if ``cfg.SOLVER.REFERENCE_WORLD_SIZE==0``.
+        For example, with the original config like the following:
+
+        .. code-block:: yaml
+
+            IMS_PER_BATCH: 16
+            BASE_LR: 0.1
+            REFERENCE_WORLD_SIZE: 8
+            MAX_ITER: 5000
+            STEPS: (4000,)
+            CHECKPOINT_PERIOD: 1000
+
+        When this config is used on 16 GPUs instead of the reference number 8,
+        calling this method will return a new config with:
+
+        .. code-block:: yaml
+
+            IMS_PER_BATCH: 32
+            BASE_LR: 0.2
+            REFERENCE_WORLD_SIZE: 16
+            MAX_ITER: 2500
+            STEPS: (2000,)
+            CHECKPOINT_PERIOD: 500
+
+        Note that both the original config and this new config can be trained on 16 GPUs.
+        It's up to user whether to enable this feature (by setting ``REFERENCE_WORLD_SIZE``).
 
         Returns:
-            CfgNode: a new config
+            CfgNode: a new config. Same as original if ``cfg.SOLVER.REFERENCE_WORLD_SIZE==0``.
         """
         old_world_size = cfg.SOLVER.REFERENCE_WORLD_SIZE
         if old_world_size == 0 or old_world_size == num_workers:
@@ -566,6 +598,7 @@ Alternatively, you can call evaluation functions yourself (see Colab balloon tut
         warmup_iter = cfg.SOLVER.WARMUP_ITERS = int(round(cfg.SOLVER.WARMUP_ITERS / scale))
         cfg.SOLVER.STEPS = tuple(int(round(s / scale)) for s in cfg.SOLVER.STEPS)
         cfg.TEST.EVAL_PERIOD = int(round(cfg.TEST.EVAL_PERIOD / scale))
+        cfg.SOLVER.CHECKPOINT_PERIOD = int(round(cfg.SOLVER.CHECKPOINT_PERIOD / scale))
         cfg.SOLVER.REFERENCE_WORLD_SIZE = num_workers  # maintain invariant
         logger = logging.getLogger(__name__)
         logger.info(

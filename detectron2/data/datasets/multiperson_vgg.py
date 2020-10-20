@@ -101,9 +101,9 @@ def register_multiperson_vgg():
     DatasetCatalog.register('tracker_val', lambda: load_vgg_instances('datasets/tracker_val/depth'))
     MetadataCatalog.get('tracker_val').set(
         thing_classes=CLASS_NAMES)
-    DatasetCatalog.register('mh_train', lambda: load_vgg_instances('datasets/mh_train'))
+    DatasetCatalog.register('mh_train', lambda: load_vgg_instances('datasets/mh_train/merged'))
     MetadataCatalog.get('mh_train').set(
         thing_classes=CLASS_NAMES)
-    DatasetCatalog.register('mh_val', lambda: load_vgg_instances('datasets/mh_val'))
+    DatasetCatalog.register('mh_val', lambda: load_vgg_instances('datasets/mh_train/merged'))
     MetadataCatalog.get('mh_val').set(
         thing_classes=CLASS_NAMES)        

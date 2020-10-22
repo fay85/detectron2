@@ -1,4 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import logging
 import numpy as np
 from typing import Optional, Tuple
@@ -43,7 +42,6 @@ class GeneralizedRCNN(nn.Module):
     ):
         """
         NOTE: this interface is experimental.
-
         Args:
             backbone: a backbone module, must follow detectron2's backbone interface
             proposal_generator: a module that generates proposals using backbone features
@@ -93,7 +91,6 @@ class GeneralizedRCNN(nn.Module):
         bounding boxes on the original image and up to 20 top-scoring predicted
         object proposals on the original image. Users can implement different
         visualization functions for different models.
-
         Args:
             batched_inputs (list): a list that contains input to the model.
             proposals (list): a list that contains predicted proposals. Both
@@ -128,16 +125,12 @@ class GeneralizedRCNN(nn.Module):
             batched_inputs: a list, batched outputs of :class:`DatasetMapper` .
                 Each item in the list contains the inputs for one image.
                 For now, each item in the list is a dict that contains:
-
                 * image: Tensor, image in (C, H, W) format.
                 * instances (optional): groundtruth :class:`Instances`
                 * proposals (optional): :class:`Instances`, precomputed proposals.
-
                 Other information that's included in the original dicts, such as:
-
                 * "height", "width" (int): the output resolution of the model, used in inference.
                   See :meth:`postprocess` for details.
-
         Returns:
             list[dict]:
                 Each dict is the output for one input image.
@@ -177,7 +170,6 @@ class GeneralizedRCNN(nn.Module):
     def inference(self, batched_inputs, detected_instances=None, do_postprocess=True):
         """
         Run inference on the given inputs.
-
         Args:
             batched_inputs (list[dict]): same as in :meth:`forward`
             detected_instances (None or list[Instances]): if not None, it
@@ -187,7 +179,6 @@ class GeneralizedRCNN(nn.Module):
                 The inference will then skip the detection of bounding boxes,
                 and only predict other per-ROI outputs.
             do_postprocess (bool): whether to apply post-processing on the outputs.
-
         Returns:
             same as in :meth:`forward`.
         """
@@ -261,7 +252,6 @@ class ProposalNetwork(nn.Module):
         """
         Args:
             Same as in :class:`GeneralizedRCNN.forward`
-
         Returns:
             list[dict]:
                 Each dict is the output for one input image.
@@ -297,3 +287,4 @@ class ProposalNetwork(nn.Module):
             r = detector_postprocess(results_per_image, height, width)
             processed_results.append({"proposals": r})
         return processed_results
+

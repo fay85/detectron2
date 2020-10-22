@@ -248,7 +248,7 @@ _C.MODEL.RPN.NMS_THRESH = 0.7
 _C.MODEL.ROI_HEADS = CN()
 _C.MODEL.ROI_HEADS.NAME = "Res5ROIHeads"
 # Number of foreground classes
-_C.MODEL.ROI_HEADS.NUM_CLASSES = 80
+_C.MODEL.ROI_HEADS.NUM_CLASSES = 1
 # Names of the input feature maps to be used by ROI heads
 # Currently all heads (box, mask, ...) use the same input feature map list
 # e.g., ["p2", "p3", "p4", "p5"] is commonly used for FPN
@@ -393,7 +393,7 @@ _C.MODEL.SEM_SEG_HEAD.IN_FEATURES = ["p2", "p3", "p4", "p5"]
 # the correposnding pixel.
 _C.MODEL.SEM_SEG_HEAD.IGNORE_VALUE = 255
 # Number of classes in the semantic segmentation head
-_C.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 54
+_C.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 1
 # Number of channels in the 3x3 convs inside semantic-FPN heads.
 _C.MODEL.SEM_SEG_HEAD.CONVS_DIM = 128
 # Outputs from semantic-FPN heads are up-scaled to the COMMON_STRIDE stride.
@@ -419,7 +419,7 @@ _C.MODEL.PANOPTIC_FPN.COMBINE.INSTANCES_CONFIDENCE_THRESH = 0.5
 _C.MODEL.RETINANET = CN()
 
 # This is the number of foreground classes.
-_C.MODEL.RETINANET.NUM_CLASSES = 80
+_C.MODEL.RETINANET.NUM_CLASSES = 1
 
 _C.MODEL.RETINANET.IN_FEATURES = ["p3", "p4", "p5", "p6", "p7"]
 

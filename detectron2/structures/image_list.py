@@ -5,6 +5,8 @@ import torch
 from torch import device
 from torch.nn import functional as F
 
+from detectron2.utils.env import TORCH_VERSION
+
 
 class ImageList(object):
     """
@@ -12,7 +14,6 @@ class ImageList(object):
     varying sizes) as a single tensor.
     This works by padding the images to the same size,
     and storing in a field the original sizes of each image
-
     Attributes:
         image_sizes (list[tuple[int, int]]): each tuple is (h, w)
     """
@@ -33,10 +34,8 @@ class ImageList(object):
     def __getitem__(self, idx) -> torch.Tensor:
         """
         Access the individual image in its original size.
-
         Args:
             idx: int or slice
-
         Returns:
             Tensor: an image of shape (H, W) or (C_1, ..., C_K, H, W) where K >= 1
         """
@@ -67,10 +66,10 @@ class ImageList(object):
                 the common height and width is divisible by `size_divisibility`.
                 This depends on the model and many models need a divisibility of 32.
             pad_value (float): value to pad
-
         Returns:
             an `ImageList`.
         """
+        # https://github.com/pytorch/pytorch/issues/42448
         assert len(tensors) > 0
         assert isinstance(tensors, (tuple, list))
         for t in tensors:
@@ -78,7 +77,8 @@ class ImageList(object):
             assert t.shape[1:-2] == tensors[0].shape[1:-2], t.shape
 
         image_sizes = tuple(im.shape[-2:] for im in tensors)
-        if torch.jit.is_tracing():
+        is_tracing = TORCH_VERSION >= (1, 7) and torch.jit.is_tracing()
+        if is_tracing:
             # In tracing mode, x.shape[i] is a scalar Tensor, and should not be converted
             # to int: this will cause the traced graph to have hard-coded shapes.
             # Instead we convert each shape to a vector with a stack()
@@ -100,7 +100,7 @@ class ImageList(object):
             # TODO: check whether it's faster for multiple images as well
             image_size = image_sizes[0]
             padding_size = [0, max_size[-1] - image_size[1], 0, max_size[-2] - image_size[0]]
-            if all(x == 0 for x in padding_size) and not torch.jit.is_tracing():
+            if all(x == 0 for x in padding_size) and not is_tracing:
                 # remove after PT1.5: https://github.com/pytorch/pytorch/issues/31734
                 batched_imgs = tensors[0].unsqueeze(0)
             else:
@@ -114,3 +114,4 @@ class ImageList(object):
                 pad_img[..., : img.shape[-2], : img.shape[-1]].copy_(img)
 
         return ImageList(batched_imgs.contiguous(), image_sizes)
+

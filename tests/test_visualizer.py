@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+# Copyright (c) Facebook, Inc. and its affiliates.
 
 import numpy as np
 import os
@@ -60,6 +60,33 @@ class TestVisualizer(unittest.TestCase):
             "image_id": 1,
             "width": 512,
         }
+        v = Visualizer(img)
+        v.draw_dataset_dict(dic)
+
+        v = Visualizer(img, self.metadata)
+        v.draw_dataset_dict(dic)
+
+    def test_draw_rotated_dataset_dict(self):
+        img = np.random.rand(512, 512, 3) * 255
+        dic = {
+            "annotations": [
+                {
+                    "bbox": [
+                        368.9946492271106,
+                        330.891438763377,
+                        13.148537455410235,
+                        13.644708680142685,
+                        45.0,
+                    ],
+                    "bbox_mode": BoxMode.XYWHA_ABS,
+                    "category_id": 0,
+                    "iscrowd": 1,
+                }
+            ],
+            "height": 512,
+            "image_id": 1,
+            "width": 512,
+        }
         v = Visualizer(img, self.metadata)
         v.draw_dataset_dict(dic)
 
@@ -93,6 +120,9 @@ class TestVisualizer(unittest.TestCase):
         inst.scores = torch.rand(num_inst)
         inst.pred_boxes = torch.from_numpy(boxes)
         inst.pred_masks = torch.from_numpy(np.asarray(masks))
+
+        v = Visualizer(img)
+        v.draw_instance_predictions(inst)
 
         v = Visualizer(img, self.metadata)
         v.draw_instance_predictions(inst)

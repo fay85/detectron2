@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+# Copyright (c) Facebook, Inc. and its affiliates.
 
 
 """
@@ -209,7 +209,11 @@ def register_all_cityscapes(root):
             sem_key, lambda x=image_dir, y=gt_dir: load_cityscapes_semantic(x, y)
         )
         MetadataCatalog.get(sem_key).set(
-            image_dir=image_dir, gt_dir=gt_dir, evaluator_type="cityscapes_sem_seg", **meta
+            image_dir=image_dir,
+            gt_dir=gt_dir,
+            evaluator_type="cityscapes_sem_seg",
+            ignore_label=255,
+            **meta,
         )
 
 
@@ -247,6 +251,7 @@ def register_all_ade20k(root):
             image_root=image_dir,
             sem_seg_root=gt_dir,
             evaluator_type="sem_seg",
+            ignore_label=255,
         )
 
 

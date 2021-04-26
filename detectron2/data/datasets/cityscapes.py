@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+# Copyright (c) Facebook, Inc. and its affiliates.
 import functools
 import json
 import logging
@@ -7,11 +7,11 @@ import numpy as np
 import os
 from itertools import chain
 import pycocotools.mask as mask_util
-from fvcore.common.file_io import PathManager
 from PIL import Image
 
 from detectron2.structures import BoxMode
 from detectron2.utils.comm import get_world_size
+from detectron2.utils.file_io import PathManager
 from detectron2.utils.logger import setup_logger
 
 try:
@@ -315,9 +315,9 @@ if __name__ == "__main__":
         dicts = load_cityscapes_semantic(args.image_dir, args.gt_dir)
         logger.info("Done loading {} samples.".format(len(dicts)))
 
-        stuff_names = [k.name for k in labels if k.trainId != 255]
+        stuff_classes = [k.name for k in labels if k.trainId != 255]
         stuff_colors = [k.color for k in labels if k.trainId != 255]
-        meta = Metadata().set(stuff_names=stuff_names, stuff_colors=stuff_colors)
+        meta = Metadata().set(stuff_classes=stuff_classes, stuff_colors=stuff_colors)
 
     for d in dicts:
         img = np.array(Image.open(PathManager.open(d["file_name"], "rb")))

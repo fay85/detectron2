@@ -33,10 +33,11 @@ data: List[Dict] = DatasetCatalog.get("my_dataset")
 ```
 
 Here, the snippet associates a dataset named "my_dataset" with a function that returns the data.
-The function must return the same data if called multiple times.
+The function must return the same data (with same order) if called multiple times.
 The registration stays effective until the process exits.
 
-The function can do arbitrary things and should return the data in either of the following formats:
+The function can do arbitrary things and should return the data in `list[dict]`, each dict in either
+of the following formats:
 1. Detectron2's standard dataset dict, described below. This will make it work with many other builtin
    features in detectron2, so it's recommended to use it when it's sufficient.
 2. Any custom format. You can also return arbitrary dicts in your own format,
@@ -74,7 +75,7 @@ and the required fields vary based on what the dataloader or the task needs (see
     - pan_seg_file_name, segments_info
 ```
 
-+ `file_name`: the full path to the image file. Rotation or flipping may be applied if the image has EXIF metadata.
++ `file_name`: the full path to the image file.
 + `height`, `width`: integer. The shape of the image.
 + `image_id` (str or int): a unique id that identifies this image. Required by many
   evaluators to identify the images, but a dataset may use it for different purposes.
@@ -89,7 +90,7 @@ and the required fields vary based on what the dataloader or the task needs (see
     The value num_categories is reserved to represent the "background" category, if applicable.
   + `segmentation` (list[list[float]] or dict): the segmentation mask of the instance.
     + If `list[list[float]]`, it represents a list of polygons, one for each connected component
-      of the object. Each `list[float]` is one simple polygon in the format of `[x1, y1, ..., xn, yn]`.
+      of the object. Each `list[float]` is one simple polygon in the format of `[x1, y1, ..., xn, yn]` (n≥3).
       The Xs and Ys are absolute coordinates in unit of pixels.
     + If `dict`, it represents the per-pixel segmentation mask in COCO's compressed RLE format.
       The dict should have keys "size" and "counts". You can convert a uint8 segmentation mask of 0s and
@@ -203,6 +204,10 @@ unavailable to you:
 * `stuff_colors` (list[tuple(r, g, b)]): Pre-defined color (in [0, 255]) for each stuff category.
   Used for visualization. If not given, random colors are used.
 
+* `ignore_label` (int): Used by semantic and panoptic segmentation tasks. Pixels in ground-truth
+  annotations with this category label should be ignored in evaluation. Typically these are "unlabeled"
+  pixels.
+
 * `keypoint_names` (list[str]): Used by keypoint detection. A list of names for each keypoint.
 
 * `keypoint_flip_map` (list[tuple[str]]): Used by keypoint detection. A list of pairs of names,
@@ -223,7 +228,7 @@ Some additional metadata that are specific to the evaluation of certain datasets
   to contiguous ids in [0, num_categories). It is useful for evaluation only.
 
 * `json_file`: The COCO annotation json file. Used by COCO evaluation for COCO-format datasets.
-* `panoptic_root`, `panoptic_json`: Used by panoptic evaluation.
+* `panoptic_root`, `panoptic_json`: Used by COCO-format panoptic evaluation.
 * `evaluator_type`: Used by the builtin main training script to select
    evaluator. Don't use it in a new training script.
    You can just provide the [DatasetEvaluator](../modules/evaluation.html#detectron2.evaluation.DatasetEvaluator)
@@ -265,6 +270,8 @@ There are other configs you might want to change to train or evaluate on new dat
   You'll also need to set [Keypoint OKS](http://cocodataset.org/#keypoints-eval)
   with `TEST.KEYPOINT_OKS_SIGMAS` for evaluation.
 * `MODEL.SEM_SEG_HEAD.NUM_CLASSES` sets the number of stuff classes for Semantic FPN & Panoptic FPN.
+* `TEST.DETECTIONS_PER_IMAGE` controls the maximum number of objects to be detected.
+  Set it to a larger number if test images may contain >100 objects.
 * If you're training Fast R-CNN (with precomputed proposals), `DATASETS.PROPOSAL_FILES_{TRAIN,TEST}`
   need to match the datasets. The format of proposal files are documented
   [here](../modules/data.html#detectron2.data.load_proposals_into_dataset).

@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+# Copyright (c) Facebook, Inc. and its affiliates.
 from typing import List
 import torch
 from torch import nn
@@ -179,7 +179,7 @@ class BaseKeypointRCNNHead(nn.Module):
     def forward(self, x, instances: List[Instances]):
         """
         Args:
-            x: input region feature(s) provided by :class:`ROIHeads`.
+            x: input 4D region feature(s) provided by :class:`ROIHeads`.
             instances (list[Instances]): contains the boxes & labels corresponding
                 to the input features.
                 Exact format is up to its caller to decide.
@@ -192,7 +192,6 @@ class BaseKeypointRCNNHead(nn.Module):
         """
         x = self.layers(x)
         if self.training:
-            assert not torch.jit.is_scripting()
             num_images = len(instances)
             normalizer = (
                 None if self.loss_normalizer == "visible" else num_images * self.loss_normalizer

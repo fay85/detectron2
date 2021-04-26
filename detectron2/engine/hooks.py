@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+# Copyright (c) Facebook, Inc. and its affiliates.
 
 import datetime
 import itertools
@@ -10,13 +10,15 @@ import time
 from collections import Counter
 import torch
 from fvcore.common.checkpoint import PeriodicCheckpointer as _PeriodicCheckpointer
-from fvcore.common.file_io import PathManager
+from fvcore.common.param_scheduler import ParamScheduler
 from fvcore.common.timer import Timer
 from fvcore.nn.precise_bn import get_bn_modules, update_bn_stats
 
 import detectron2.utils.comm as comm
 from detectron2.evaluation.testing import flatten_results_dict
+from detectron2.solver import LRMultiplier
 from detectron2.utils.events import EventStorage, EventWriter
+from detectron2.utils.file_io import PathManager
 
 from .train_loop import HookBase
 
@@ -203,30 +205,44 @@ class LRScheduler(HookBase):
     It is executed after every iteration.
     """
 
-    def __init__(self, optimizer, scheduler):
+    def __init__(self, optimizer=None, scheduler=None):
         """
         Args:
             optimizer (torch.optim.Optimizer):
-            scheduler (torch.optim._LRScheduler)
+            scheduler (torch.optim.LRScheduler or fvcore.common.param_scheduler.ParamScheduler):
+                if a :class:`ParamScheduler` object, it defines the multiplier over the base LR
+                in the optimizer.
+
+        If any argument is not given, will try to obtain it from the trainer.
         """
         self._optimizer = optimizer
         self._scheduler = scheduler
 
+    def before_train(self):
+        self._optimizer = self._optimizer or self.trainer.optimizer
+        if isinstance(self.scheduler, ParamScheduler):
+            self._scheduler = LRMultiplier(
+                self._optimizer,
+                self.scheduler,
+                self.trainer.max_iter,
+                last_iter=self.trainer.iter - 1,
+            )
+
         # NOTE: some heuristics on what LR to summarize
         # summarize the param group with most parameters
-        largest_group = max(len(g["params"]) for g in optimizer.param_groups)
+        largest_group = max(len(g["params"]) for g in self._optimizer.param_groups)
 
         if largest_group == 1:
             # If all groups have one parameter,
             # then find the most common initial LR, and use it for summary
-            lr_count = Counter([g["lr"] for g in optimizer.param_groups])
+            lr_count = Counter([g["lr"] for g in self._optimizer.param_groups])
             lr = lr_count.most_common()[0][0]
-            for i, g in enumerate(optimizer.param_groups):
+            for i, g in enumerate(self._optimizer.param_groups):
                 if g["lr"] == lr:
                     self._best_param_group_id = i
                     break
         else:
-            for i, g in enumerate(optimizer.param_groups):
+            for i, g in enumerate(self._optimizer.param_groups):
                 if len(g["params"]) == largest_group:
                     self._best_param_group_id = i
                     break
@@ -234,7 +250,22 @@ class LRScheduler(HookBase):
     def after_step(self):
         lr = self._optimizer.param_groups[self._best_param_group_id]["lr"]
         self.trainer.storage.put_scalar("lr", lr, smoothing_hint=False)
-        self._scheduler.step()
+        self.scheduler.step()
+
+    @property
+    def scheduler(self):
+        return self._scheduler or self.trainer.scheduler
+
+    def state_dict(self):
+        if isinstance(self.scheduler, torch.optim.lr_scheduler._LRScheduler):
+            return self.scheduler.state_dict()
+        return {}
+
+    def load_state_dict(self, state_dict):
+        if isinstance(self.scheduler, torch.optim.lr_scheduler._LRScheduler):
+            logger = logging.getLogger(__name__)
+            logger.info("Loading scheduler from state_dict ...")
+            self.scheduler.load_state_dict(state_dict)
 
 
 class AutogradProfiler(HookBase):
@@ -350,7 +381,9 @@ class EvalHook(HookBase):
     def after_step(self):
         next_iter = self.trainer.iter + 1
         if self._period > 0 and next_iter % self._period == 0:
-            self._do_eval()
+            # do the last eval in after_train
+            if next_iter != self.trainer.max_iter:
+                self._do_eval()
 
     def after_train(self):
         # This condition is to prevent the eval from running after a failed training

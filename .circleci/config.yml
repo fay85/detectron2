@@ -6,6 +6,9 @@ version: 2.1
 cpu: &cpu
   docker:
     - image: circleci/python:3.6.8-stretch
+      auth:
+        username: $DOCKERHUB_USERNAME
+        password: $DOCKERHUB_TOKEN
   resource_class: medium
 
 gpu: &gpu
@@ -28,10 +31,10 @@ pytorch_parameters: &pytorch_parameters
   parameters:
     pytorch_version:
       type: string
-      default: "1.6"
+      default: "1.7"
     torchvision_version:
       type: string
-      default: "0.7"
+      default: "0.8"
 
   environment:
     PYTORCH_VERSION: << parameters.pytorch_version >>
@@ -50,6 +53,7 @@ pytorch_parameters: &pytorch_parameters
 #         nvidia-smi
 
 add_ssh_keys: &add_ssh_keys
+  # https://circleci.com/docs/2.0/add-ssh-key/
   - add_ssh_keys:
       fingerprints:
         - "e4:13:f2:22:d4:49:e8:e4:57:5a:ac:20:2f:3f:1f:ca"
@@ -63,7 +67,7 @@ install_python: &install_python
         pyenv global 3.6.8
         python --version
         which python
-        pip install --upgrade pip setuptools==49.6.0
+        pip install --upgrade pip
 
 setup_venv: &setup_venv
   - run:
@@ -76,7 +80,7 @@ setup_venv: &setup_venv
         python --version
         which python
         which pip
-        pip install --upgrade pip setuptools==49.6.0
+        pip install --upgrade pip
 
 setup_venv_win: &setup_venv_win
   - run:
@@ -93,9 +97,18 @@ install_linux_dep: &install_linux_dep
   - run:
       name: Install Dependencies
       command: |
+        # install from github to get latest; install iopath first since fvcore depends on it
+        pip install --progress-bar off -U 'git+https://github.com/facebookresearch/iopath'
         pip install --progress-bar off -U 'git+https://github.com/facebookresearch/fvcore'
         pip install --progress-bar off ninja opencv-python-headless pytest-xdist tensorboard pycocotools
-        pip install --progress-bar off torch==$PYTORCH_VERSION torchvision==$TORCHVISION_VERSION -f https://download.pytorch.org/whl/cu101/torch_stable.html
+        # install from pytorch's test wheels index to have access to RC wheels
+        pip install --progress-bar off torch==$PYTORCH_VERSION -f https://download.pytorch.org/whl/test/torch_test.html
+        if [[ "$TORCHVISION_VERSION" == "master" ]]; then
+          pip install git+https://github.com/pytorch/vision.git
+        else
+          pip install --progress-bar off torchvision==$TORCHVISION_VERSION -f https://download.pytorch.org/whl/test/torch_test.html
+        fi
+
         python -c 'import torch; print("CUDA:", torch.cuda.is_available())'
         gcc --version
 
@@ -103,7 +116,7 @@ install_detectron2: &install_detectron2
   - run:
       name: Install Detectron2
       command: |
-        pip install --progress-bar off -e .
+        pip install --progress-bar off -e .[all]
         python -m detectron2.utils.collect_env
 
 run_unittests: &run_unittests
@@ -127,16 +140,17 @@ jobs:
       - <<: *setup_venv
 
       # Cache the venv directory that contains dependencies
+      # Refresh the key when dependencies should be updated (e.g. when pytorch releases)
       - restore_cache:
           keys:
-            - cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20200907
+            - cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20210404
 
       - <<: *install_linux_dep
 
       - save_cache:
           paths:
             - ~/venv
-          key: cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20200907
+          key: cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20210404
 
       - <<: *install_detectron2
       - <<: *run_unittests
@@ -153,7 +167,7 @@ jobs:
       # Cache the directory that contains python and dependencies
       - restore_cache:
           keys:
-            - cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20200907
+            - cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20210404
 
       - <<: *install_python
       - <<: *install_linux_dep
@@ -161,12 +175,12 @@ jobs:
       - save_cache:
           paths:
             - /opt/circleci/.pyenv
-          key: cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20200907
+          key: cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20210404
 
       - <<: *install_detectron2
       - <<: *run_unittests
 
-  windows_cpu_tests:
+  windows_cpu_build:
     <<: *windows_cpu
     <<: *pytorch_parameters
     steps:
@@ -177,7 +191,7 @@ jobs:
       # Cache the env directory that contains dependencies
       - restore_cache:
           keys:
-            - cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20200907
+            - cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20210404
 
       - run:
           name: Install Dependencies
@@ -185,13 +199,14 @@ jobs:
             pip install certifi --ignore-installed  # required on windows to workaround some cert issue
             pip install numpy cython  # required on windows before pycocotools
             pip install opencv-python-headless pytest-xdist pycocotools tensorboard
+            pip install -U git+https://github.com/facebookresearch/iopath
             pip install -U git+https://github.com/facebookresearch/fvcore
-            pip install torch==1.6.0+cpu torchvision==0.7.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+            pip install torch==$env:PYTORCH_VERSION torchvision==$env:TORCHVISION_VERSION -f https://download.pytorch.org/whl/cpu/torch_stable.html
 
       - save_cache:
           paths:
             - env
-          key: cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20200907
+          key: cache-{{ arch }}-<< parameters.pytorch_version >>-{{ .Branch }}-20210404
 
       - <<: *install_detectron2
       # TODO: unittest fails for now
@@ -200,17 +215,22 @@ workflows:
   version: 2
   regular_test:
     jobs:
-      - linux_cpu_tests
-      - linux_gpu_tests:
-          name: linux_gpu_tests_pytorch1.4
-          pytorch_version: '1.4'
-          torchvision_version: '0.5'
-      - linux_gpu_tests:
-          name: linux_gpu_tests_pytorch1.5
-          pytorch_version: '1.5'
-          torchvision_version: '0.6'
+      - linux_cpu_tests:
+          name: linux_cpu_tests_pytorch1.8
+          pytorch_version: '1.8+cpu'
+          torchvision_version: '0.9+cpu'
+          context:
+            - DOCKERHUB_TOKEN
       - linux_gpu_tests:
           name: linux_gpu_tests_pytorch1.6
-          pytorch_version: '1.6'
-          torchvision_version: '0.7'
-      - windows_cpu_tests
+          pytorch_version: '1.6+cu101'
+          torchvision_version: '0.7+cu101'
+      - linux_gpu_tests:
+          name: linux_gpu_tests_pytorch1.7
+          pytorch_version: '1.7+cu101'
+          torchvision_version: '0.8.1+cu101'
+      - linux_gpu_tests:
+          name: linux_gpu_tests_pytorch1.8
+          pytorch_version: '1.8+cu101'
+          torchvision_version: '0.9+cu101'
+      - windows_cpu_build

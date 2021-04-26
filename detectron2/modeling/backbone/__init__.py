@@ -1,9 +1,16 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+# Copyright (c) Facebook, Inc. and its affiliates.
 from .build import build_backbone, BACKBONE_REGISTRY  # noqa F401 isort:skip
 
 from .backbone import Backbone
 from .fpn import FPN
-from .resnet import ResNet, ResNetBlockBase, build_resnet_backbone, make_stage
-from .efficientnet import EfficientNet
+from .resnet import (
+    BasicStem,
+    ResNet,
+    ResNetBlockBase,
+    build_resnet_backbone,
+    make_stage,
+    BottleneckBlock,
+)
+
 __all__ = [k for k in globals().keys() if not k.startswith("_")]
 

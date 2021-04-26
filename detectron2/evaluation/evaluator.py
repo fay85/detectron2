@@ -1,10 +1,12 @@
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+# Copyright (c) Facebook, Inc. and its affiliates.
 import datetime
 import logging
 import time
-from collections import OrderedDict
-from contextlib import contextmanager
+from collections import OrderedDict, abc
+from contextlib import ExitStack, contextmanager
+from typing import List, Union
 import torch
+from torch import nn
 
 from detectron2.utils.comm import get_world_size, is_main_process
 from detectron2.utils.logger import log_every_n_seconds
@@ -98,22 +100,25 @@ class DatasetEvaluators(DatasetEvaluator):
         return results
 
 
-def inference_on_dataset(model, data_loader, evaluator):
+def inference_on_dataset(
+    model, data_loader, evaluator: Union[DatasetEvaluator, List[DatasetEvaluator], None]
+):
     """
     Run model on the data_loader and evaluate the metrics with evaluator.
-    Also benchmark the inference speed of `model.forward` accurately.
+    Also benchmark the inference speed of `model.__call__` accurately.
     The model will be used in eval mode.
 
     Args:
-        model (nn.Module): a module which accepts an object from
-            `data_loader` and returns some outputs. It will be temporarily set to `eval` mode.
+        model (callable): a callable which takes an object from
+            `data_loader` and returns some outputs.
 
+            If it's an nn.Module, it will be temporarily set to `eval` mode.
             If you wish to evaluate a model in `training` mode instead, you can
             wrap the given model and override its behavior of `.eval()` and `.train()`.
         data_loader: an iterable object with a length.
             The elements it generates will be the inputs to the model.
-        evaluator (DatasetEvaluator): the evaluator to run. Use `None` if you only want
-            to benchmark, but don't want to do any evaluation.
+        evaluator: the evaluator(s) to run. Use `None` if you only want to benchmark,
+            but don't want to do any evaluation.
 
     Returns:
         The return value of `evaluator.evaluate()`
@@ -126,12 +131,18 @@ def inference_on_dataset(model, data_loader, evaluator):
     if evaluator is None:
         # create a no-op evaluator
         evaluator = DatasetEvaluators([])
+    if isinstance(evaluator, abc.MutableSequence):
+        evaluator = DatasetEvaluators(evaluator)
     evaluator.reset()
 
     num_warmup = min(5, total - 1)
     start_time = time.perf_counter()
     total_compute_time = 0
-    with inference_context(model), torch.no_grad():
+    with ExitStack() as stack:
+        if isinstance(model, nn.Module):
+            stack.enter_context(inference_context(model))
+        stack.enter_context(torch.no_grad())
+
         for idx, inputs in enumerate(data_loader):
             if idx == num_warmup:
                 start_time = time.perf_counter()

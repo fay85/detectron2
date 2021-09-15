@@ -50,13 +50,14 @@ def do_train(args, cfg):
             dataloader.evaluator: instantiate to evaluator for test set
             optimizer: instantaite to an optimizer
             lr_multiplier: instantiate to a fvcore scheduler
-            train: other misc config defined in `common_train.py`, including:
+            train: other misc config defined in `configs/common/train.py`, including:
                 output_dir (str)
                 init_checkpoint (str)
                 amp.enabled (bool)
                 max_iter (int)
-                checkpoint_period, eval_period, log_period (int)
+                eval_period, log_period (int)
                 device (str)
+                checkpointer (dict)
                 ddp (dict)
     """
     model = instantiate(cfg.model)
@@ -81,7 +82,7 @@ def do_train(args, cfg):
         [
             hooks.IterationTimer(),
             hooks.LRScheduler(scheduler=instantiate(cfg.lr_multiplier)),
-            hooks.PeriodicCheckpointer(checkpointer, cfg.train.checkpoint_period)
+            hooks.PeriodicCheckpointer(checkpointer, **cfg.train.checkpointer)
             if comm.is_main_process()
             else None,
             hooks.EvalHook(cfg.train.eval_period, lambda: do_test(cfg, model)),

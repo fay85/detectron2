@@ -353,7 +353,7 @@ class Visualizer:
                 color channels. The image is required to be in RGB format since that
                 is a requirement of the Matplotlib library. The image is also expected
                 to be in the range [0, 255].
-            metadata (Metadata): image metadata.
+            metadata (Metadata): dataset metadata (e.g. class names and colors)
             instance_mode (ColorMode): defines one of the pre-defined style for drawing
                 instances on an image.
         """
@@ -1177,7 +1177,7 @@ class Visualizer:
         Convert different format of boxes to an NxB array, where B = 4 or 5 is the box dimension.
         """
         if isinstance(boxes, Boxes) or isinstance(boxes, RotatedBoxes):
-            return boxes.tensor.numpy()
+            return boxes.tensor.detach().numpy()
         else:
             return np.asarray(boxes)
 

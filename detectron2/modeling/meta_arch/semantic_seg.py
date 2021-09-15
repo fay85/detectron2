@@ -15,7 +15,12 @@ from ..backbone import Backbone, build_backbone
 from ..postprocessing import sem_seg_postprocess
 from .build import META_ARCH_REGISTRY
 
-__all__ = ["SemanticSegmentor", "SEM_SEG_HEADS_REGISTRY", "SemSegFPNHead", "build_sem_seg_head"]
+__all__ = [
+    "SemanticSegmentor",
+    "SEM_SEG_HEADS_REGISTRY",
+    "SemSegFPNHead",
+    "build_sem_seg_head",
+]
 
 
 SEM_SEG_HEADS_REGISTRY = Registry("SEM_SEG_HEADS")
@@ -38,7 +43,7 @@ class SemanticSegmentor(nn.Module):
         backbone: Backbone,
         sem_seg_head: nn.Module,
         pixel_mean: Tuple[float],
-        pixel_std: Tuple[float]
+        pixel_std: Tuple[float],
     ):
         """
         Args:
@@ -147,7 +152,7 @@ class SemSegFPNHead(nn.Module):
         common_stride: int,
         loss_weight: float = 1.0,
         norm: Optional[Union[str, Callable]] = None,
-        ignore_value: int = -1
+        ignore_value: int = -1,
     ):
         """
         NOTE: this interface is experimental.
@@ -163,6 +168,8 @@ class SemSegFPNHead(nn.Module):
         """
         super().__init__()
         input_shape = sorted(input_shape.items(), key=lambda x: x[1].stride)
+        if not len(input_shape):
+            raise ValueError("SemSegFPNHead(input_shape=) cannot be empty!")
         self.in_features = [k for k, v in input_shape]
         feature_strides = [v.stride for k, v in input_shape]
         feature_channels = [v.channels for k, v in input_shape]
@@ -241,7 +248,10 @@ class SemSegFPNHead(nn.Module):
     def losses(self, predictions, targets):
         predictions = predictions.float()  # https://github.com/pytorch/pytorch/issues/48163
         predictions = F.interpolate(
-            predictions, scale_factor=self.common_stride, mode="bilinear", align_corners=False
+            predictions,
+            scale_factor=self.common_stride,
+            mode="bilinear",
+            align_corners=False,
         )
         loss = F.cross_entropy(
             predictions, targets, reduction="mean", ignore_index=self.ignore_value

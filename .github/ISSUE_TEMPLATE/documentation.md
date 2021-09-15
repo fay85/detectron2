@@ -1,12 +1,14 @@
 ---
-name: "\U0001F4DA Documentation Issues"
-about: Issues about existing documentation, comments, website or tutorials.
+name: "\U0001F4DA Documentation Issue"
+about: Report a problem about existing documentation, comments, website or tutorials.
 labels: documentation
 
 ---
 
-## 📚 Documentation
+## 📚 Documentation Issue
 
-* Link to the relevant documentation/comment/tutorials:
+This issue category is for problems about existing documentation, not for asking how-to questions.
 
-* What is missing, inaccurate, or imprecise?
+* Provide a link to an existing documentation/comment/tutorial:
+
+* How should the above documentation/comment/tutorial improve:

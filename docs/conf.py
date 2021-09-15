@@ -292,6 +292,8 @@ def autodoc_skip_member(app, what, name, obj, skip, options):
         "draw_panoptic_seg_predictions",
         "WarmupCosineLR",
         "WarmupMultiStepLR",
+        "downgrade_config",
+        "upgrade_config",
     }
     try:
         if name in HIDDEN or (
@@ -329,6 +331,8 @@ _PAPER_DATA = {
         "1802.02611",
         "Encoder-Decoder with Atrous Separable Convolution for Semantic Image Segmentation",
     ),
+    "dds": ("2003.13678", "Designing Network Design Spaces"),
+    "scaling": ("2103.06877", "Fast and Accurate Model Scaling"),
 }
 
 

@@ -125,7 +125,7 @@ def inference_on_dataset(
     """
     num_devices = get_world_size()
     logger = logging.getLogger(__name__)
-    logger.info("Start inference on {} images".format(len(data_loader)))
+    logger.info("Start inference on {} batches".format(len(data_loader)))
 
     total = len(data_loader)  # inference data loader must have a fixed length
     if evaluator is None:
@@ -137,49 +137,66 @@ def inference_on_dataset(
 
     num_warmup = min(5, total - 1)
     start_time = time.perf_counter()
+    total_data_time = 0
     total_compute_time = 0
+    total_eval_time = 0
     with ExitStack() as stack:
         if isinstance(model, nn.Module):
             stack.enter_context(inference_context(model))
         stack.enter_context(torch.no_grad())
 
+        start_data_time = time.perf_counter()
         for idx, inputs in enumerate(data_loader):
+            total_data_time += time.perf_counter() - start_data_time
             if idx == num_warmup:
                 start_time = time.perf_counter()
+                total_data_time = 0
                 total_compute_time = 0
+                total_eval_time = 0
 
             start_compute_time = time.perf_counter()
             outputs = model(inputs)
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             total_compute_time += time.perf_counter() - start_compute_time
+
+            start_eval_time = time.perf_counter()
             evaluator.process(inputs, outputs)
+            total_eval_time += time.perf_counter() - start_eval_time
 
             iters_after_start = idx + 1 - num_warmup * int(idx >= num_warmup)
-            seconds_per_img = total_compute_time / iters_after_start
-            if idx >= num_warmup * 2 or seconds_per_img > 5:
-                total_seconds_per_img = (time.perf_counter() - start_time) / iters_after_start
-                eta = datetime.timedelta(seconds=int(total_seconds_per_img * (total - idx - 1)))
+            data_seconds_per_iter = total_data_time / iters_after_start
+            compute_seconds_per_iter = total_compute_time / iters_after_start
+            eval_seconds_per_iter = total_eval_time / iters_after_start
+            total_seconds_per_iter = (time.perf_counter() - start_time) / iters_after_start
+            if idx >= num_warmup * 2 or compute_seconds_per_iter > 5:
+                eta = datetime.timedelta(seconds=int(total_seconds_per_iter * (total - idx - 1)))
                 log_every_n_seconds(
                     logging.INFO,
-                    "Inference done {}/{}. {:.4f} s / img. ETA={}".format(
-                        idx + 1, total, seconds_per_img, str(eta)
+                    (
+                        f"Inference done {idx + 1}/{total}. "
+                        f"Dataloading: {data_seconds_per_iter:.4f} s/iter. "
+                        f"Inference: {compute_seconds_per_iter:.4f} s/iter. "
+                        f"Eval: {eval_seconds_per_iter:.4f} s/iter. "
+                        f"Total: {total_seconds_per_iter:.4f} s/iter. "
+                        f"ETA={eta}"
                     ),
                     n=5,
                 )
+            start_data_time = time.perf_counter()
 
     # Measure the time only for this worker (before the synchronization barrier)
     total_time = time.perf_counter() - start_time
     total_time_str = str(datetime.timedelta(seconds=total_time))
     # NOTE this format is parsed by grep
     logger.info(
-        "Total inference time: {} ({:.6f} s / img per device, on {} devices)".format(
+        "Total inference time: {} ({:.6f} s / iter per device, on {} devices)".format(
             total_time_str, total_time / (total - num_warmup), num_devices
         )
     )
     total_compute_time_str = str(datetime.timedelta(seconds=int(total_compute_time)))
     logger.info(
-        "Total inference pure compute time: {} ({:.6f} s / img per device, on {} devices)".format(
+        "Total inference pure compute time: {} ({:.6f} s / iter per device, on {} devices)".format(
             total_compute_time_str, total_compute_time / (total - num_warmup), num_devices
         )
     )

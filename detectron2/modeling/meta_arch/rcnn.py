@@ -118,7 +118,7 @@ class GeneralizedRCNN(nn.Module):
             storage.put_image(vis_name, vis_img)
             break  # only visualize one image in a batch
 
-    def forward(self, batched_inputs: Tuple[Dict[str, torch.Tensor]]):
+    def forward(self, batched_inputs: List[Dict[str, torch.Tensor]]):
         """
         Args:
             batched_inputs: a list, batched outputs of :class:`DatasetMapper` .
@@ -168,7 +168,7 @@ class GeneralizedRCNN(nn.Module):
 
     def inference(
         self,
-        batched_inputs: Tuple[Dict[str, torch.Tensor]],
+        batched_inputs: List[Dict[str, torch.Tensor]],
         detected_instances: Optional[List[Instances]] = None,
         do_postprocess: bool = True,
     ):
@@ -210,7 +210,7 @@ class GeneralizedRCNN(nn.Module):
         else:
             return results
 
-    def preprocess_image(self, batched_inputs: Tuple[Dict[str, torch.Tensor]]):
+    def preprocess_image(self, batched_inputs: List[Dict[str, torch.Tensor]]):
         """
         Normalize, pad and batch the input images.
         """
@@ -220,7 +220,7 @@ class GeneralizedRCNN(nn.Module):
         return images
 
     @staticmethod
-    def _postprocess(instances, batched_inputs: Tuple[Dict[str, torch.Tensor]], image_sizes):
+    def _postprocess(instances, batched_inputs: List[Dict[str, torch.Tensor]], image_sizes):
         """
         Rescale the output instances to the target size.
         """

@@ -5,8 +5,6 @@ import torch
 from torch import device
 from torch.nn import functional as F
 
-from detectron2.utils.env import TORCH_VERSION
-
 def _as_tensor(x: Tuple[int, int]) -> torch.Tensor:
     """
     An equivalent of `torch.as_tensor`, but works under tracing if input
@@ -23,8 +21,9 @@ class ImageList(object):
     """
     Structure that holds a list of images (of possibly
     varying sizes) as a single tensor.
-    This works by padding the images to the same size,
-    and storing in a field the original sizes of each image
+    This works by padding the images to the same size.
+    The original sizes of each image is stored in `image_sizes`.
+
     Attributes:
         image_sizes (list[tuple[int, int]]): each tuple is (h, w).
             During tracing, it becomes list[Tensor] instead.
@@ -99,8 +98,7 @@ class ImageList(object):
         if torch.jit.is_scripting():
             max_size: List[int] = max_size.to(dtype=torch.long).tolist()
         else:
-            # https://github.com/pytorch/pytorch/issues/42448
-            if TORCH_VERSION >= (1, 7) and torch.jit.is_tracing():
+            if torch.jit.is_tracing():
                 image_sizes = image_sizes_tensor
 
         if len(tensors) == 1:

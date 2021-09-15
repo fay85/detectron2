@@ -16,7 +16,7 @@ from .utils import BilinearInterpolationHelper, LossDict
 
 @DENSEPOSE_LOSS_REGISTRY.register()
 class DensePoseChartWithConfidenceLoss(DensePoseChartLoss):
-    """"""
+    """ """
 
     def __init__(self, cfg: CfgNode):
         super().__init__(cfg)
@@ -150,6 +150,7 @@ class IIDIsotropicGaussianUVLoss(nn.Module):
         delta_t_delta = (u - target_u) ** 2 + (v - target_v) ** 2
         # the total loss from the formula above:
         loss = 0.5 * (self.log2pi + 2 * torch.log(sigma2) + delta_t_delta / sigma2)
+        # pyre-fixme[16]: `float` has no attribute `sum`.
         return loss.sum()
 
 

@@ -18,7 +18,6 @@ from detectron2.modeling import build_backbone
 from detectron2.modeling.postprocessing import detector_postprocess
 from detectron2.modeling.roi_heads import KRCNNConvDeconvUpsampleHead
 from detectron2.structures import Boxes, Instances
-from detectron2.utils.env import TORCH_VERSION
 from detectron2.utils.testing import (
     assert_instances_allclose,
     convert_scripted_instances,
@@ -33,7 +32,6 @@ contains some explanations of this file.
 """
 
 
-@unittest.skipIf(TORCH_VERSION < (1, 8), "Insufficient Pytorch version")
 class TestScripting(unittest.TestCase):
     def testMaskRCNNFPN(self):
         self._test_rcnn_model("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
@@ -86,13 +84,19 @@ class TestScripting(unittest.TestCase):
         # https://github.com/pytorch/pytorch/issues/46944
 
 
-@unittest.skipIf(TORCH_VERSION < (1, 8), "Insufficient Pytorch version")
+# TODO: this test requires manifold access, see: T88318502
 class TestTracing(unittest.TestCase):
     def testMaskRCNNFPN(self):
-        # TODO: this test requires manifold access, see: T88318502
         def inference_func(model, image):
             inputs = [{"image": image}]
             return model.inference(inputs, do_postprocess=False)[0]
+
+        self._test_model("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml", inference_func)
+
+    def testMaskRCNNFPN_with_postproc(self):
+        def inference_func(model, image):
+            inputs = [{"image": image, "height": image.shape[1], "width": image.shape[2]}]
+            return model.inference(inputs, do_postprocess=True)[0]["instances"]
 
         self._test_model("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml", inference_func)
 
@@ -104,7 +108,6 @@ class TestTracing(unittest.TestCase):
         self._test_model("COCO-InstanceSegmentation/mask_rcnn_R_50_C4_3x.yaml", inference_func)
 
     def testRetinaNet(self):
-        # TODO: this test requires manifold access, see: T88318502
         def inference_func(model, image):
             return model.forward([{"image": image}])[0]["instances"]
 

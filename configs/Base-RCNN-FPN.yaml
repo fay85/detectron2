@@ -32,8 +32,8 @@ MODEL:
     NUM_CONV: 4
     POOLER_RESOLUTION: 14
 DATASETS:
-  TRAIN: ("tracker_train",)
-  TEST: ("tracker_val",)
+  TRAIN: ("mh_train",)
+  TEST: ("mh_val",)
 SOLVER:
   IMS_PER_BATCH: 16
   BASE_LR: 0.02

@@ -2,11 +2,11 @@
 import logging
 import os
 import pickle
+import torch
 from fvcore.common.checkpoint import Checkpointer
 from torch.nn.parallel import DistributedDataParallel
 
 import detectron2.utils.comm as comm
-from detectron2.utils.env import TORCH_VERSION
 from detectron2.utils.file_io import PathManager
 
 from .c2_model_loading import align_and_update_state_dicts
@@ -53,8 +53,7 @@ class DetectionCheckpointer(Checkpointer):
 
         if need_sync:
             logger.info("Broadcasting model states from main worker ...")
-            if TORCH_VERSION >= (1, 7):
-                self.model._sync_params_and_buffers()
+            self.model._sync_params_and_buffers()
         return ret
 
     def _load_file(self, filename):
@@ -72,6 +71,19 @@ class DetectionCheckpointer(Checkpointer):
                     data = data["blobs"]
                 data = {k: v for k, v in data.items() if not k.endswith("_momentum")}
                 return {"model": data, "__author__": "Caffe2", "matching_heuristics": True}
+        elif filename.endswith(".pyth"):
+            # assume file is from pycls; no one else seems to use the ".pyth" extension
+            with PathManager.open(filename, "rb") as f:
+                data = torch.load(f)
+            assert (
+                "model_state" in data
+            ), f"Cannot load .pyth file {filename}; pycls checkpoints must contain 'model_state'."
+            model_state = {
+                k: v
+                for k, v in data["model_state"].items()
+                if not k.endswith("num_batches_tracked")
+            }
+            return {"model": model_state, "__author__": "pycls", "matching_heuristics": True}
 
         loaded = super()._load_file(filename)  # load native pth checkpoint
         if "model" not in loaded:
@@ -100,4 +112,9 @@ class DetectionCheckpointer(Checkpointer):
                     incompatible.missing_keys.remove(k)
                 except ValueError:
                     pass
+        for k in incompatible.unexpected_keys[:]:
+            # Ignore unexpected keys about cell anchors. They exist in old checkpoints
+            # but now they are non-persistent buffers and will not be in new checkpoints.
+            if "anchor_generator.cell_anchors" in k:
+                incompatible.unexpected_keys.remove(k)
         return incompatible

@@ -9,6 +9,7 @@ import uuid
 from collections import abc
 from contextlib import contextmanager
 from copy import deepcopy
+from dataclasses import is_dataclass
 from typing import List, Tuple, Union
 import cloudpickle
 import yaml
@@ -40,12 +41,19 @@ class LazyCall:
     def __init__(self, target):
         if not (callable(target) or isinstance(target, (str, abc.Mapping))):
             raise TypeError(
-                "target of LazyCall must be a callable or defines a callable! Got {target}"
+                f"target of LazyCall must be a callable or defines a callable! Got {target}"
             )
         self._target = target
 
     def __call__(self, **kwargs):
-        kwargs["_target_"] = self._target
+        if is_dataclass(self._target):
+            # omegaconf object cannot hold dataclass type
+            # https://github.com/omry/omegaconf/issues/784
+            target = _convert_target_to_string(self._target)
+        else:
+            target = self._target
+        kwargs["_target_"] = target
+
         return DictConfig(content=kwargs, flags={"allow_objects": True})
 
 
@@ -151,7 +159,7 @@ def _patch_import():
 
 class LazyConfig:
     """
-    Provid methods to save, load, and overrides an omegaconf config object
+    Provide methods to save, load, and overrides an omegaconf config object
     which may contain definition of lazily-constructed objects.
     """
 
@@ -229,6 +237,11 @@ class LazyConfig:
     @staticmethod
     def save(cfg, filename: str):
         """
+        Save a config object to a yaml file.
+        Note that when the config dictionary contains complex objects (e.g. lambda),
+        it can't be saved to yaml. In that case we will print an error and
+        attempt to save to a pkl file instead.
+
         Args:
             cfg: an omegaconf config object
             filename: yaml file name to save the config file
@@ -250,17 +263,32 @@ class LazyConfig:
             # not necessary, but makes yaml looks nicer
             _visit_dict_config(cfg, _replace_type_by_name)
 
+        save_pkl = False
         try:
+            dict = OmegaConf.to_container(cfg, resolve=False)
+            dumped = yaml.dump(dict, default_flow_style=None, allow_unicode=True, width=9999)
             with PathManager.open(filename, "w") as f:
-                OmegaConf.save(cfg, f)
+                f.write(dumped)
+
+            try:
+                _ = yaml.unsafe_load(dumped)  # test that it is loadable
+            except Exception:
+                logger.warning(
+                    "The config contains objects that cannot serialize to a valid yaml. "
+                    f"{filename} is human-readable but cannot be loaded."
+                )
+                save_pkl = True
         except Exception:
             logger.exception("Unable to serialize the config to yaml. Error:")
+            save_pkl = True
+
+        if save_pkl:
             new_filename = filename + ".pkl"
             try:
                 # retry by pickle
                 with PathManager.open(new_filename, "wb") as f:
                     cloudpickle.dump(cfg, f)
-                logger.warning(f"Config saved using cloudpickle at {new_filename} ...")
+                logger.warning(f"Config is saved using cloudpickle at {new_filename}.")
             except Exception:
                 pass
 
@@ -305,3 +333,67 @@ class LazyConfig:
                 raise NotImplementedError("deletion is not yet a supported override")
             safe_update(cfg, key, value)
         return cfg
+
+    @staticmethod
+    def to_py(cfg, prefix: str = "cfg."):
+        """
+        Try to convert a config object into Python-like psuedo code.
+
+        Note that perfect conversion is not always possible. So the returned
+        results are mainly meant to be human-readable, and not meant to be executed.
+
+        Args:
+            cfg: an omegaconf config object
+            prefix: root name for the resulting code (default: "cfg.")
+
+
+        Returns:
+            str of formatted Python code
+        """
+        import black
+
+        cfg = OmegaConf.to_container(cfg, resolve=True)
+
+        def _to_str(obj, prefix=None, inside_call=False):
+            if prefix is None:
+                prefix = []
+            if isinstance(obj, abc.Mapping) and "_target_" in obj:
+                # Dict representing a function call
+                target = _convert_target_to_string(obj.pop("_target_"))
+                args = []
+                for k, v in sorted(obj.items()):
+                    args.append(f"{k}={_to_str(v, inside_call=True)}")
+                args = ", ".join(args)
+                call = f"{target}({args})"
+                return "".join(prefix) + call
+            elif isinstance(obj, abc.Mapping) and not inside_call:
+                # Dict that is not inside a call is a list of top-level config objects that we
+                # render as one object per line with dot separated prefixes
+                key_list = []
+                for k, v in sorted(obj.items()):
+                    if isinstance(v, abc.Mapping) and "_target_" not in v:
+                        key_list.append(_to_str(v, prefix=prefix + [k + "."]))
+                    else:
+                        key = "".join(prefix) + k
+                        key_list.append(f"{key}={_to_str(v)}")
+                return "\n".join(key_list)
+            elif isinstance(obj, abc.Mapping):
+                # Dict that is inside a call is rendered as a regular dict
+                return (
+                    "{"
+                    + ",".join(
+                        f"{repr(k)}: {_to_str(v, inside_call=inside_call)}"
+                        for k, v in sorted(obj.items())
+                    )
+                    + "}"
+                )
+            elif isinstance(obj, list):
+                return "[" + ",".join(_to_str(x, inside_call=inside_call) for x in obj) + "]"
+            else:
+                return repr(obj)
+
+        py_str = _to_str(cfg, prefix=[prefix])
+        try:
+            return black.format_str(py_str, mode=black.Mode())
+        except black.InvalidInput:
+            return py_str

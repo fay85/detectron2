@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-
+# Copyright (c) Facebook, Inc. and its affiliates.
 import itertools
 import logging
 import numpy as np
@@ -46,7 +45,6 @@ class MMDetBackbone(Backbone):
         backbone: Union[nn.Module, Mapping],
         neck: Union[nn.Module, Mapping, None] = None,
         *,
-        pretrained_backbone: Optional[str] = None,
         output_shapes: List[ShapeSpec],
         output_names: Optional[List[str]] = None,
     ):
@@ -78,12 +76,11 @@ class MMDetBackbone(Backbone):
             neck = build_neck(_to_container(neck))
         self.neck = neck
 
-        # It's confusing that backbone weights are given as a separate argument,
-        # but "neck" weights, if any, are part of neck itself. This is the interface
+        # "Neck" weights, if any, are part of neck itself. This is the interface
         # of mmdet so we follow it. Reference:
         # https://github.com/open-mmlab/mmdetection/blob/master/mmdet/models/detectors/two_stage.py
-        logger.info(f"Initializing mmdet backbone weights: {pretrained_backbone} ...")
-        self.backbone.init_weights(pretrained_backbone)
+        logger.info("Initializing mmdet backbone weights...")
+        self.backbone.init_weights()
         # train() in mmdet modules is non-trivial, and has to be explicitly
         # called. Reference:
         # https://github.com/open-mmlab/mmdetection/blob/master/mmdet/models/backbones/resnet.py
@@ -158,7 +155,7 @@ class MMDetDetector(nn.Module):
             self.pixel_mean.shape == self.pixel_std.shape
         ), f"{self.pixel_mean} and {self.pixel_std} have different shapes!"
 
-    def forward(self, batched_inputs: Tuple[Dict[str, torch.Tensor]]):
+    def forward(self, batched_inputs: List[Dict[str, torch.Tensor]]):
         images = [x["image"].to(self.device) for x in batched_inputs]
         images = [(x - self.pixel_mean) / self.pixel_std for x in images]
         images = ImageList.from_tensors(images, size_divisibility=self.size_divisibility).tensor
@@ -173,7 +170,9 @@ class MMDetDetector(nn.Module):
             c, h, w = input["image"].shape
             meta["img_shape"] = meta["ori_shape"] = (h, w, c)
             if rescale:
-                scale_factor = np.array([w / input["width"], h / input["height"]] * 2)
+                scale_factor = np.array(
+                    [w / input["width"], h / input["height"]] * 2, dtype="float32"
+                )
                 ori_shape = (input["height"], input["width"])
                 output_shapes.append(ori_shape)
                 meta["ori_shape"] = ori_shape + (c,)

@@ -10,7 +10,6 @@ from detectron2.layers import Conv2d, ShapeSpec, get_norm
 from .backbone import Backbone
 from .build import BACKBONE_REGISTRY
 from .resnet import build_resnet_backbone
-from .efficientnet import build_efficient_backbone
 
 
 __all__ = ['build_efficient_fpn_backbone',"build_resnet_fpn_backbone", "build_retinanet_resnet_fpn_backbone", "FPN"]

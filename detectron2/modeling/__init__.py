@@ -7,7 +7,6 @@ from .backbone import (
     FPN,
     Backbone,
     ResNet,
-    EfficientNet,
     ResNetBlockBase,
     build_backbone,
     build_resnet_backbone,
